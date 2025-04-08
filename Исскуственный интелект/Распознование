@@ -1,0 +1,75 @@
+import cv2
+from ultralytics import YOLO
+import os
+from tkinter import Tk, filedialog
+
+# Инициализируем модель YOLO
+model = YOLO("yolov8n.pt")  # Модель автоматически скачается при первом запуске
+
+# Настройка окон Tkinter
+root = Tk()
+root.withdraw()  # Скрываем основное окно
+
+# 1. Диалог выбора видеофайла
+video_path = filedialog.askopenfilename(
+    title="Выберите видеофайл для обработки",
+    filetypes=[("Video files", "*.mp4 *.avi *.mov *.mkv *.MP4 *.AVI *.MOV *.MKV")]
+)
+
+if not video_path:
+    print("Файл не выбран. Программа завершена.")
+    exit()
+
+# 2. Диалог выбора папки для сохранения
+save_dir = filedialog.askdirectory(
+    title="Выберите папку для сохранения результата"
+)
+
+if not save_dir:
+    print("Папка не выбрана. Программа завершена.")
+    exit()
+
+# Создаем имя для выходного файла
+filename = os.path.splitext(os.path.basename(video_path))[0]
+output_path = os.path.join(save_dir, f"{filename}_detected.mp4")
+
+# Открываем видеофайл
+cap = cv2.VideoCapture(video_path)
+
+# Получаем параметры видео
+frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+fps = int(cap.get(cv2.CAP_PROP_FPS))
+
+# Создаем VideoWriter для сохранения
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+
+# Обработка видео
+try:
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        # Детекция людей
+        results = model(frame, classes=[0])  # Класс 0 - человек
+        
+        # Визуализация и сохранение
+        annotated_frame = results[0].plot()
+        out.write(annotated_frame)
+        
+        # Отображение процесса
+        cv2.imshow("YOLO People Detection (Нажмите Q для отмены)", annotated_frame)
+        
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            print("Обработка прервана пользователем")
+            break
+
+finally:
+    # Освобождение ресурсов
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
+
+print(f"\nОбработка завершена. Результат сохранен в:\n{output_path}")
